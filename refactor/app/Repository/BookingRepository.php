@@ -187,8 +187,9 @@ class BookingRepository extends BaseRepository
             }
 
             if ($data['immediate'] == 'yes') {
-                $due_carbon = Carbon::now()->addMinute($immediatetime);
-                $data['due'] = $due_carbon->format('Y-m-d H:i:s');
+               // $due_carbon = Carbon::now()->addMinute($immediatetime);
+                //$data['due'] = $due_carbon->format('Y-m-d H:i:s');
+                $data['due'] = Carbon::now()->addMinute($immediatetime)->format('Y-m-d H:i:s');
                 $data['immediate'] = 'yes';
                 $data['customer_phone_type'] = 'yes';
                 $response['type'] = 'immediate';
@@ -1561,13 +1562,13 @@ class BookingRepository extends BaseRepository
         $cuser_meta = $cuser->userMeta;
         $job_type = 'unpaid';
         $translator_type = $cuser_meta->translator_type;
-        if ($translator_type == 'professional')
-            $job_type = 'paid';   /*show all jobs for professionals.*/
-        else if ($translator_type == 'rwstranslator')
-            $job_type = 'rws';  /* for rwstranslator only show rws jobs. */
-        else if ($translator_type == 'volunteer')
-            $job_type = 'unpaid';  /* for volunteers only show unpaid jobs. */
-
+        $jTypes = ['professional' => 'paid', 'rwstranslator' => 'rws', 'volunteer' => 'unpaid'];
+        foreach($jTypes as $key  => $value){
+                if ($translator_type == $key){
+                        $job_type = $value;   /*show all jobs for professionals.*/
+                }
+        }
+   
         $languages = UserLanguages::where('user_id', '=', $cuser->id)->get();
         $userlanguage = collect($languages)->pluck('lang_id')->all();
         $gender = $cuser_meta->gender;
@@ -1592,11 +1593,11 @@ class BookingRepository extends BaseRepository
         return $job_ids;
     }
 
-    public function endJob($post_data)
+    public function endJob(Job $job,$post_data)
     {
         $completeddate = date('Y-m-d H:i:s');
         $jobid = $post_data["job_id"];
-        $job_detail = Job::with('translatorJobRel')->find($jobid);
+        $job_detail = $job->with('translatorJobRel')->find($jobid);
 
         if($job_detail->status != 'started')
             return ['status' => 'success'];
@@ -1657,11 +1658,11 @@ class BookingRepository extends BaseRepository
     }
 
 
-    public function customerNotCall($post_data)
+    public function customerNotCall(Job $job,$post_data)
     {
         $completeddate = date('Y-m-d H:i:s');
         $jobid = $post_data["job_id"];
-        $job_detail = Job::with('translatorJobRel')->find($jobid);
+        $job_detail = $job->with('translatorJobRel')->find($jobid);
         $duedate = $job_detail->due;
         $start = date_create($duedate);
         $end = date_create($completeddate);
@@ -1753,7 +1754,6 @@ class BookingRepository extends BaseRepository
 
             if (isset($requestdata['job_type']) && $requestdata['job_type'] != '') {
                 $allJobs->whereIn('job_type', $requestdata['job_type']);
-                /*$allJobs->where('jobs.job_type', '=', $requestdata['job_type']);*/
             }
 
             if (isset($requestdata['physical'])) {
@@ -1875,9 +1875,9 @@ class BookingRepository extends BaseRepository
         return $allJobs;
     }
 
-    public function alerts()
+    public function alerts(Job $job, Request $request)
     {
-        $jobs = Job::all();
+        $jobs = $job->all();
         $sesJobs = [];
         $jobId = [];
         $diff = [];
@@ -1902,7 +1902,7 @@ class BookingRepository extends BaseRepository
         }
 
         $languages = Language::where('active', '1')->orderBy('language')->get();
-        $requestdata = Request::all();
+        $requestdata = $request->all();
         $all_customers = DB::table('users')->where('user_type', '1')->lists('email');
         $all_translators = DB::table('users')->where('user_type', '2')->lists('email');
 
@@ -1986,10 +1986,10 @@ class BookingRepository extends BaseRepository
         return ['throttles' => $throttles];
     }
 
-    public function bookingExpireNoAccepted()
+    public function bookingExpireNoAccepted(Request $request)
     {
         $languages = Language::where('active', '1')->orderBy('language')->get();
-        $requestdata = Request::all();
+        $requestdata = $request->all();
         $all_customers = DB::table('users')->where('user_type', '1')->lists('email');
         $all_translators = DB::table('users')->where('user_type', '2')->lists('email');
 
@@ -2086,25 +2086,22 @@ class BookingRepository extends BaseRepository
         return ['allJobs' => $allJobs, 'languages' => $languages, 'all_customers' => $all_customers, 'all_translators' => $all_translators, 'requestdata' => $requestdata];
     }
 
-    public function ignoreExpiring($id)
+    public function ignoreExpiring(Job $job, $id)
     {
-        $job = Job::find($id);
         $job->ignore = 1;
         $job->save();
         return ['success', 'Changes saved'];
     }
 
-    public function ignoreExpired($id)
+    public function ignoreExpired(Job $job,$id)
     {
-        $job = Job::find($id);
         $job->ignore_expired = 1;
         $job->save();
         return ['success', 'Changes saved'];
     }
 
-    public function ignoreThrottle($id)
+    public function ignoreThrottle(Throttles $throttle, $id)
     {
-        $throttle = Throttles::find($id);
         $throttle->ignore = 1;
         $throttle->save();
         return ['success', 'Changes saved'];
@@ -2112,10 +2109,10 @@ class BookingRepository extends BaseRepository
 
     public function reopen($request)
     {
+
         $jobid = $request['jobid'];
         $userid = $request['userid'];
-
-        $job = Job::find($jobid);
+        $job = Job::findOrFail($jobid);
         $job = $job->toArray();
 
         $data = array();

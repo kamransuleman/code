@@ -40,7 +40,8 @@ class BookingController extends Controller
             $response = $this->repository->getUsersJobs($user_id);
 
         }
-        elseif($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID'))
+        elseif(array_key_exists($request->__authenticatedUser->user_type ,[env('ADMIN_ROLE_ID'), env('SUPERADMIN_ROLE_ID')]))
+        //elseif($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID'))
         {
             $response = $this->repository->getAll($request);
         }
@@ -93,7 +94,7 @@ class BookingController extends Controller
      */
     public function immediateJobEmail(Request $request)
     {
-        $adminSenderEmail = config('app.adminemail');
+        //$adminSenderEmail = config('app.adminemail');
         $data = $request->all();
 
         $response = $this->repository->storeJobEmail($data);
@@ -195,8 +196,15 @@ class BookingController extends Controller
     public function distanceFeed(Request $request)
     {
         $data = $request->all();
-
-        if (isset($data['distance']) && $data['distance'] != "") {
+        $indexes = ['distance', 'time', 'jobid','session_time','admincomment'];
+        foreach($indexes as $key => $value){
+            if (isset($data[$value]) && $data[$value] != "") {
+                $$value = $data[$value];
+             } else {
+                $$value = "";
+            } 
+        }
+        /*if (isset($data['distance']) && $data['distance'] != "") {
             $distance = $data['distance'];
         } else {
             $distance = "";
@@ -215,6 +223,11 @@ class BookingController extends Controller
         } else {
             $session = "";
         }
+        if (isset($data['admincomment']) && $data['admincomment'] != "") {
+            $admincomment = $data['admincomment'];
+        } else {
+            $admincomment = "";
+        }*/
 
         if ($data['flagged'] == 'true') {
             if($data['admincomment'] == '') return "Please, add comment";
@@ -235,11 +248,7 @@ class BookingController extends Controller
             $by_admin = 'no';
         }
 
-        if (isset($data['admincomment']) && $data['admincomment'] != "") {
-            $admincomment = $data['admincomment'];
-        } else {
-            $admincomment = "";
-        }
+        
         if ($time || $distance) {
 
             $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
