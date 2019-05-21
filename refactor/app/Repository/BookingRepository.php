@@ -187,8 +187,6 @@ class BookingRepository extends BaseRepository
             }
 
             if ($data['immediate'] == 'yes') {
-               // $due_carbon = Carbon::now()->addMinute($immediatetime);
-                //$data['due'] = $due_carbon->format('Y-m-d H:i:s');
                 $data['due'] = Carbon::now()->addMinute($immediatetime)->format('Y-m-d H:i:s');
                 $data['immediate'] = 'yes';
                 $data['customer_phone_type'] = 'yes';
